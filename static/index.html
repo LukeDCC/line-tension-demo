@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Line Tension Demo</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link href="http://netdna.bootstrapcdn.com/twitter-bootstrap/2.3.2/css/bootstrap-combined.min.css" rel="stylesheet">
+<link href="index.css" type="text/css" rel="stylesheet">
+<script src="http://ajax.aspnetcdn.com/ajax/jquery/jquery-1.9.0.js"></script>
+<script src="http://netdna.bootstrapcdn.com/twitter-bootstrap/2.3.2/js/bootstrap.min.js"></script>
+<script src="http://ajax.aspnetcdn.com/ajax/knockout/knockout-2.2.1.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/1.0.2/Chart.min.js"></script>
+</head>
+<body>
+    <div class="navbar">
+        <div class="navbar-inner">
+            <a class="brand" href="#">Line Tension Demo</a>
+        </div>
+    </div>
+    <div id="main" class="container">
+        <table class="table table-striped">
+    		<tbody data-bind="foreach: berths" >
+    		<tr>
+        		<td>
+            		<span data-bind="visible: empty" class="label label-success">Empty</span>
+            		<span data-bind="visible: !empty()" class="label label-important">Docked</span>
+        		</td>
+        		<td><p><b data-bind="text: berthname"></b></p>
+        		 	<p data-bind="text: description"></p>
+        		</td>
+        		<td>
+        			<span data-bind="visible: !empty()">
+                		<button data-bind="click: $parent.beginOpen" class="btn">Open</button>
+                	</span>
+        		</td>
+    		</tr>
+    		</tbody>
+		</table>
+		
+    </div>
+    <div id="open" class="modal hide fade" tabindex="=1" role="dialog" aria-labelledby="openDialogLabel" aria-hidden="true" >
+    		<div class="modal-header">
+        		<button type="button" class="close" data-dismiss="modal" aria-hidden="true">×</button>
+        		<h3 id="openDialogLabel">Berth A</h3>
+    		</div>
+    		<div id="modalBody" class="modal-body">
+        	</div>
+        	<div class=modal-footer>
+        	<table class="table table-striped">
+    				<tr><td style="width: 1px;"></td><td><b>Line</b></td><td><b>Tension</b></td></tr>
+    				 <!-- ko foreach: lines -->
+    				<tr>
+    					<td style="width: 1px;"></td>
+        				<td>
+        					<b data-bind="text: id"></b>
+        				</td>
+        				<td>
+            				<b data-bind="text: tension"></b>
+        				</td>
+    				</tr>
+    				<!-- /ko -->
+				</table>
+			</div>
+    </div>
+    <script type="text/javascript">
+  		function BerthsViewModel() {
+  		var self = this;
+  		self.berthsURI = 'http://line-tension-demo.ap-southeast-2.elasticbeanstalk.com/lines/api/v1.0/berths';
+        self.berths = ko.observableArray();
+        
+        
+        self.ajax = function(uri, method, data) {
+            var request = {
+                url: uri,
+                type: method,
+                contentType: "application/json",
+                accepts: "application/json",
+                cache: false,
+                dataType: 'json',
+                data: JSON.stringify(data),
+                
+                error: function(jqXHR) {
+                    console.log("ajax error " + jqXHR.status);
+                }
+            };
+            return $.ajax(request);
+        }
+
+        
+        self.beginOpen = function(berth) {
+            openLinesViewModel.setLines(berth);
+            $('#open').modal('show');            
+        }
+        
+        self.ajax(self.berthsURI, 'GET').done(function(data) {           
+              for (var i = 0; i < data.berths.length; i++) {
+            	var lines = [];
+                if (data.berths[i].lines != null) {
+                	for (var j = 0; j < data.berths[i].lines.length; j++){
+                        lines.push({ id: data.berths[i].lines[j].id,
+                        	tension: data.berths[i].lines[j].tension });
+                    }
+                }
+                self.berths.push({
+                    berthname: data.berths[i].berthname,
+                    description: data.berths[i].description,
+                    empty: ko.observable(data.berths[i].empty),
+                    lines: lines
+                });
+              }
+    	});
+    	
+    	
+    	}
+    	
+    	function updateLines() {
+    		self.ajax(self.berthsURI, 'GET').done(function(data) {           
+              for (var i = 0; i < data.berths.length; i++) {
+            	var lines = [];
+                if (data.berths[i].lines != null) {
+                	for (var j = 0; j < data.berths[i].lines.length; j++){
+                        lines.push({ id: data.berths[i].lines[j].id,
+                        	tension: data.berths[i].lines[j].tension });
+                    }
+                }
+                self.berths.push({
+                    berthname: data.berths[i].berthname,
+                    description: data.berths[i].lines[0].id + " ",
+                    empty: ko.observable(data.berths[i].empty),
+                    lines: lines
+                });
+              }
+    		});
+    		setTimeOut(updateLines,5000);
+    	}
+    	
+		function OpenLinesViewModel() {
+        	var self = this;
+        	var chartData = {labels: [], 
+        					  datasets:[{
+        					  		label: 'line tension',
+        					  		fillColor:'#382765',
+        					  		data: []
+        					  		}]};
+        	self.lines = ko.observableArray();
+        	self.setLines = function(berth) {
+        		self.lines([]);
+        		chartData.labels.length = 0;
+        		chartData.datasets[0].data.length = 0;
+        		for (var j = 0; j < berth.lines.length; j++){
+                        self.lines.push({ id: ko.observable(berth.lines[j].id),
+                        	tension: ko.observable(berth.lines[j].tension) });
+                        chartData.labels.push(berth.lines[j].id);
+                        chartData.datasets[0].data.push(berth.lines[j].tension);
+                }
+                
+        		$('open').modal('show');
+        		
+        		
+    			//showModalChart(chartData);
+    			showModalCanvas(berth);
+        	}
+        }
+        
+        function showModalCanvas(berth)
+        {
+        	var self = this;
+        	var ctx = document.getElementsByTagName("canvas")[0];
+			if (ctx == null) {        	
+    			var canvasElement = document.createElement("CANVAS");
+    			canvasElement.setAttribute("width", "800");
+    			canvasElement.setAttribute("height", "320");
+    
+    			document.getElementById("modalBody").appendChild(canvasElement);
+    			ctx = document.getElementsByTagName("canvas")[0].getContext('2d');
+    			ctx.beginPath();
+    			ctx.fillStyle = "#3399ff";
+    			ctx.fillRect(0,0, 800, 250);
+    			ctx.beginPath();
+    			ctx.fillStyle = "#cc9900";
+    			ctx.fillRect(0,250,800,320);
+    			ctx.beginPath();
+    			ctx.fillStyle = "#990000";
+    			ctx.strokeStyle = "#990000";
+    			ctx.fillRect(225,20, 450, 150);
+    			//ctx.moveTo(100,100);
+				ctx.moveTo(225,20);
+				ctx.quadraticCurveTo(50,100,225,170);
+				ctx.closePath();
+				ctx.fill();
+				ctx.moveTo(675,20);
+				ctx.quadraticCurveTo(700,50,710,80);
+				//ctx.lineTo(710,85);
+				ctx.lineTo(710,110);
+				ctx.quadraticCurveTo(700,140,675,170);
+				ctx.closePath();
+				ctx.fill();
+				
+				ctx.beginPath();
+    			ctx.moveTo(0,250);
+    			ctx.lineTo(800,250);
+    			ctx.strokeStyle = "#000000";
+    			ctx.stroke();
+    			
+    			ctx.beginPath();
+    			ctx.fillStyle = "#000000";
+    			ctx.arc(20,275,8,0,2*Math.PI);
+    			ctx.fill();
+    			
+    			
+    			ctx.beginPath();
+    			ctx.fillStyle = "#44FF00";
+    			ctx.arc(70,275,8,0,2*Math.PI);
+    			ctx.fill();
+    			
+    			
+    			ctx.beginPath();
+    			ctx.fillStyle = "#000000";
+    			ctx.font = "16px Sans-Serif";
+    			ctx.fillText(berth.lines[0].tension,60,305);
+    			ctx.arc(120,275,8,0,2*Math.PI);
+    			ctx.fill();
+    			
+    			ctx.beginPath();
+    			ctx.fillStyle = "#44FF00";
+    			ctx.arc(170,275,8,0,2*Math.PI);
+    			ctx.fill();
+    			
+    			ctx.beginPath();
+    			ctx.fillStyle = "#000000";
+    			ctx.font = "16px Sans-Serif";
+    			ctx.fillText(berth.lines[1].tension,160,305);
+    			ctx.arc(220,275,8,0,2*Math.PI);
+    			ctx.fill();
+    			
+    			ctx.beginPath();
+    			ctx.fillStyle = "#44FF00";
+    			ctx.arc(270,275,8,0,2*Math.PI);
+    			ctx.fill();
+    			
+    			ctx.beginPath();
+    			ctx.fillStyle = "#000000";
+    			ctx.font = "16px Sans-Serif";
+    			ctx.fillText(berth.lines[2].tension,260,305);
+    			ctx.arc(320,275,8,0,2*Math.PI);
+    			ctx.fill();
+    			
+    			ctx.beginPath();
+    			ctx.fillStyle = "#44FF00";
+    			ctx.arc(370,275,8,0,2*Math.PI);
+    			ctx.fill();
+    			
+    			ctx.beginPath();
+    			ctx.fillStyle = "#000000";
+    			ctx.font = "16px Sans-Serif";
+    			ctx.fillText(berth.lines[3].tension,360,305);
+    			ctx.arc(420,275,8,0,2*Math.PI);
+    			ctx.fill();
+    			
+    			ctx.beginPath();
+    			ctx.fillStyle = "#44FF00";
+    			ctx.arc(470,275,8,0,2*Math.PI);
+    			ctx.fill();
+    			
+    			ctx.beginPath();
+    			ctx.fillStyle = "#000000";
+    			ctx.font = "16px sans-serif";
+    			ctx.fillText(berth.lines[4].tension,460,305);
+    			ctx.arc(520,275,8,0,2*Math.PI);
+    			ctx.fill();
+    			
+    			ctx.beginPath();
+    			ctx.fillStyle = "#44FF00";
+    			ctx.arc(570,275,8,0,2*Math.PI);
+    			ctx.fill();
+    			
+    			ctx.beginPath();
+    			ctx.fillStyle = "#000000";
+    			ctx.font = "16px Sans-Serif";
+    			ctx.fillText(berth.lines[5].tension,560,305);
+    			ctx.arc(620,275,8,0,2*Math.PI);
+    			ctx.fill();
+    			
+    			ctx.beginPath();
+    			ctx.fillStyle = "#44FF00";
+    			ctx.arc(670,275,8,0,2*Math.PI);
+    			ctx.fill();
+    			
+    			ctx.beginPath();
+    			ctx.fillStyle = "#000000";
+    			ctx.font = "16px Sans-Serif";
+    			ctx.fillText(berth.lines[6].tension,660,305);
+    			ctx.arc(720,275,8,0,2*Math.PI);
+    			ctx.fill();
+    			
+    			ctx.beginPath();
+    			ctx.fillStyle = "#44FF00";
+    			ctx.arc(770,275,8,0,2*Math.PI);
+    			ctx.fill();
+    			
+    			ctx.beginPath();
+    			ctx.fillStyle = "#000000";
+    			ctx.font = "16px Sans-Serif";
+    			ctx.fillText(berth.lines[7].tension,760,305);
+    		}
+    		
+        }
+        
+        
+        function showModalChart(data) {
+        	var ctx = document.getElementsByTagName("canvas")[0];
+			if (ctx == null) {        	
+    			var canvasElement = document.createElement("CANVAS");
+    			canvasElement.setAttribute("width", "400");
+    			canvasElement.setAttribute("height", "200");
+    
+    			document.getElementById("modalBody").appendChild(canvasElement);
+    			ctx = document.getElementsByTagName("canvas")[0];
+    		}
+			else {
+				ctx.getContext('2d').clearRect(0, 0, 400, 200);
+			}	 
+    		$('#open').off('.modalchart').on('shown.bs.modal.modalchart', function() {
+        			new Chart(ctx.getContext('2d')).Bar(data);
+    		});
+  		}
+  		
+        var berthsViewModel = new BerthsViewModel();
+        var openLinesViewModel = new OpenLinesViewModel();
+        ko.applyBindings(berthsViewModel, $('#main')[0]);
+        ko.applyBindings(openLinesViewModel, $('#open')[0]);
+        
+    </script>
+</body>
+</html>
